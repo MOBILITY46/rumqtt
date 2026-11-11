@@ -34,8 +34,13 @@ pub fn read(fixed_header: FixedHeader, mut bytes: Bytes) -> Result<Publish, Erro
         retain,
         qos,
         pkid,
-        topic,
-        payload: bytes,
+        // charge46 patch (CPMS46-303): copy topic and payload out of the connection's read
+        // buffer. Zero-copy slices kept in the router's commit log pin the whole read buffer
+        // allocation, and that allocation grows to fit the largest packet. A small publish
+        // that lands behind a ~700 KB one keeps ~1 MB alive until its own filter's log rotates
+        // (hours for slow topics), so memory grew without bound.
+        topic: Bytes::copy_from_slice(&topic),
+        payload: Bytes::copy_from_slice(&bytes),
     };
 
     Ok(publish)
